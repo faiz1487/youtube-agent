@@ -19,15 +19,117 @@ class SunoClient:
     """
     Client for composing music with Suno AI.
     Supports:
-      1. Direct Suno session cookie (studio-api.suno.ai)
+      1. Direct Suno session cookie with automatic Clerk JWT exchange (studio-api.suno.ai)
       2. Standard Suno API Gateway / Self-hosted endpoint
     """
 
-    def __init__(self):
-        self.mode = SUNO_MODE
-        self.cookie = SUNO_COOKIE
+    def __init__(self, cookie: Optional[str] = None, mode: Optional[str] = None):
+        self.mode = mode or SUNO_MODE
+        self.cookie = cookie or SUNO_COOKIE
         self.api_url = SUNO_API_URL
         self.api_key = SUNO_API_KEY
+        self._cached_jwt: Optional[str] = None
+        self._jwt_expires_at: float = 0
+
+    def get_auth_headers(self) -> Dict[str, str]:
+        """
+        Builds authorization headers for Suno Studio API.
+        Automatically obtains or refreshes the Clerk JWT token if needed.
+        """
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Origin": "https://suno.com",
+            "Referer": "https://suno.com/",
+            "Content-Type": "application/json"
+        }
+
+        # If user passed a JWT token directly
+        if self.cookie.startswith("ey"):
+            headers["Authorization"] = f"Bearer {self.cookie}"
+            return headers
+
+        # If we have a cached JWT that hasn't expired (tokens usually valid for 60s)
+        if self._cached_jwt and time.time() < self._jwt_expires_at:
+            headers["Authorization"] = f"Bearer {self._cached_jwt}"
+            return headers
+
+        # Exchange browser cookie with Clerk for fresh JWT
+        jwt = self._exchange_cookie_for_jwt()
+        if jwt:
+            self._cached_jwt = jwt
+            self._jwt_expires_at = time.time() + 50  # Cache for 50s
+            headers["Authorization"] = f"Bearer {jwt}"
+        else:
+            # Fallback: pass cookie directly
+            headers["Cookie"] = self.cookie
+
+        return headers
+
+    def _exchange_cookie_for_jwt(self) -> Optional[str]:
+        """
+        Hits Clerk authentication endpoint using browser session cookies
+        to retrieve a fresh JWT token for studio-api.suno.ai.
+        """
+        try:
+            clerk_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                "Cookie": self.cookie,
+                "Origin": "https://suno.com",
+                "Referer": "https://suno.com/"
+            }
+
+            # 1. Fetch active session ID
+            session_url = "https://clerk.suno.com/v1/client?_clerk_js_version=5.15.0"
+            res = requests.get(session_url, headers=clerk_headers, timeout=15)
+            if res.status_code != 200:
+                logger.debug(f"Clerk client request returned status {res.status_code}")
+                return None
+
+            data = res.json()
+            session_id = data.get("response", {}).get("last_active_session_id")
+            if not session_id:
+                sessions = data.get("response", {}).get("sessions", [])
+                if sessions:
+                    session_id = sessions[0].get("id")
+
+            if not session_id:
+                logger.debug("Could not find active session_id in Clerk response")
+                return None
+
+            # 2. Mint session token
+            token_url = f"https://clerk.suno.com/v1/client/sessions/{session_id}/tokens?_clerk_js_version=5.15.0"
+            token_res = requests.post(token_url, headers=clerk_headers, timeout=15)
+            if token_res.status_code == 200:
+                jwt = token_res.json().get("jwt")
+                if jwt:
+                    logger.debug("Successfully refreshed Suno Clerk JWT token.")
+                    return jwt
+
+        except Exception as e:
+            logger.debug(f"Clerk token refresh exception: {e}")
+
+        return None
+
+    def get_user_info(self) -> Dict[str, Any]:
+        """
+        Verify connection and fetch billing/credits information from Suno.
+        """
+        if self.mode == "cookie":
+            headers = self.get_auth_headers()
+            url = "https://studio-api.suno.ai/api/billing/info/"
+            resp = requests.get(url, headers=headers, timeout=15)
+            if resp.status_code != 200:
+                # Also try feed endpoint to verify session
+                resp = requests.get("https://studio-api.suno.ai/api/feed/", headers=headers, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+        elif self.mode == "api_gateway":
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            resp = requests.get(f"{self.api_url}/api/get_limit", headers=headers, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+        else:
+            raise ValueError(f"Unknown mode: {self.mode}")
 
     def compose_song(self, title: str, style_tags: str, lyrics: str, output_path: Optional[Path] = None) -> Path:
         """
@@ -45,21 +147,11 @@ class SunoClient:
 
     def _compose_via_cookie(self, title: str, style_tags: str, lyrics: str, output_path: Path) -> Path:
         """
-        Calls Suno's studio API using session cookie authentication.
+        Calls Suno's studio API using session cookie / JWT authentication.
         """
-        logger.info("Submitting song generation request to Suno via session cookie...")
+        logger.info("Submitting song generation request to Suno...")
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Cookie": self.cookie,
-            "Content-Type": "application/json",
-            "Referer": "https://suno.com",
-            "Origin": "https://suno.com"
-        }
-
-        # If user passed a JWT token directly in SUNO_COOKIE instead of Cookie header format
-        if self.cookie.startswith("ey"):
-            headers["Authorization"] = f"Bearer {self.cookie}"
+        headers = self.get_auth_headers()
 
         payload = {
             "prompt": lyrics,
@@ -85,10 +177,10 @@ class SunoClient:
         logger.info(f"Suno generation initiated. Clip ID: {clip_id}. Polling for completion...")
 
         # Poll status until audio is ready
-        audio_url = self._poll_suno_cookie_status(clip_id, headers)
+        audio_url = self._poll_suno_cookie_status(clip_id)
         return self._download_file(audio_url, output_path)
 
-    def _poll_suno_cookie_status(self, clip_id: str, headers: dict, timeout_seconds: int = 360) -> str:
+    def _poll_suno_cookie_status(self, clip_id: str, timeout_seconds: int = 360) -> str:
         """
         Polls the Suno feed endpoint until the clip is completed and provides an audio URL.
         """
@@ -98,6 +190,7 @@ class SunoClient:
         while time.time() - start_time < timeout_seconds:
             time.sleep(10)
             try:
+                headers = self.get_auth_headers()
                 resp = requests.get(feed_endpoint, headers=headers, timeout=30)
                 if resp.status_code == 200:
                     clips = resp.json()
