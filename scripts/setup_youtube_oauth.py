@@ -42,7 +42,7 @@ def main():
             "client_secret": client_secret,
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": ["http://localhost:8080/"]
+            "redirect_uris": ["http://localhost:8081/"]
         }
     }
 
@@ -57,7 +57,7 @@ def main():
 
     # Run local server on fixed port to capture refresh_token
     credentials = flow.run_local_server(
-        port=8080,
+        port=8081,
         prompt="consent",
         access_type="offline"
     )
