@@ -116,11 +116,11 @@ class SunoClient:
         """
         if self.mode == "cookie":
             headers = self.get_auth_headers()
-            url = "https://studio-api.suno.ai/api/billing/info/"
+            url = "https://studio-api.prod.suno.com/api/billing/info/"
             resp = requests.get(url, headers=headers, timeout=15)
             if resp.status_code != 200:
                 # Also try feed endpoint to verify session
-                resp = requests.get("https://studio-api.suno.ai/api/feed/", headers=headers, timeout=15)
+                resp = requests.get("https://studio-api.prod.suno.com/api/feed/", headers=headers, timeout=15)
             resp.raise_for_status()
             return resp.json()
         elif self.mode == "api_gateway":
@@ -161,7 +161,7 @@ class SunoClient:
             "mv": "chirp-v3-5"
         }
 
-        generate_endpoint = "https://studio-api.suno.ai/api/generate/v2/"
+        generate_endpoint = "https://studio-api.prod.suno.com/api/generate/v2/"
 
         response = requests.post(generate_endpoint, json=payload, headers=headers, timeout=60)
         if response.status_code != 200:
@@ -184,7 +184,7 @@ class SunoClient:
         """
         Polls the Suno feed endpoint until the clip is completed and provides an audio URL.
         """
-        feed_endpoint = f"https://studio-api.suno.ai/api/feed/?ids={clip_id}"
+        feed_endpoint = f"https://studio-api.prod.suno.com/api/feed/?ids={clip_id}"
         start_time = time.time()
 
         while time.time() - start_time < timeout_seconds:
