@@ -1,7 +1,10 @@
+import os
+import random
 import logging
+import urllib.parse
 import requests
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from PIL import Image, ImageDraw, ImageFont
 
 from src.config import (
@@ -9,67 +12,273 @@ from src.config import (
     GENERATE_AI_COVER,
     VIDEO_WIDTH,
     VIDEO_HEIGHT,
-    TEMP_DIR
+    TEMP_DIR,
+    ROOT_DIR
 )
 
 logger = logging.getLogger(__name__)
 
+ASSETS_FONTS_DIR = ROOT_DIR / "src" / "assets" / "fonts"
+
+
+def get_font(font_type: str = "title", size: int = 72) -> ImageFont.ImageFont:
+    """
+    Load high quality font for Bollywood movie poster typography.
+    Falls back gracefully across local assets, Windows, Linux, and PIL defaults.
+    """
+    candidates: List[Path] = []
+
+    if font_type == "title":
+        candidates.extend([
+            ASSETS_FONTS_DIR / "CinematicTitle.ttf",
+            Path("C:/Windows/Fonts/georgiab.ttf"),
+            Path("C:/Windows/Fonts/palab.ttf"),
+            Path("C:/Windows/Fonts/timesbd.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf")
+        ])
+    else:  # subtitle / presenter
+        candidates.extend([
+            ASSETS_FONTS_DIR / "Subtitle.ttf",
+            Path("C:/Windows/Fonts/arialbd.ttf"),
+            Path("C:/Windows/Fonts/segoeui.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+        ])
+
+    for font_path in candidates:
+        if font_path.exists():
+            try:
+                return ImageFont.truetype(str(font_path), size)
+            except Exception:
+                continue
+
+    # Fallback to default system font
+    try:
+        return ImageFont.truetype("arial.ttf" if os.name == "nt" else "DejaVuSans.ttf", size)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def format_title_lines(title: str) -> List[str]:
+    """
+    Format song title into 1 or 2 elegant lines for Bollywood movie poster layout.
+    """
+    words = title.strip().split()
+    if len(words) <= 1:
+        return [title.upper()]
+    elif len(words) == 2:
+        return [words[0].upper(), words[1].upper()]
+    elif len(words) == 3:
+        return [f"{words[0]} {words[1]}".upper(), words[2].upper()]
+    elif len(words) == 4:
+        return [f"{words[0]} {words[1]}".upper(), f"{words[2]} {words[3]}".upper()]
+    else:
+        mid = len(words) // 2
+        return [" ".join(words[:mid]).upper(), " ".join(words[mid:]).upper()]
+
+
+def apply_movie_poster_styling(
+    base_image: Image.Image,
+    title: str,
+    subtitle: Optional[str] = None,
+    presenter: str = "THE COVER BOOTH PRESENTS"
+) -> Image.Image:
+    """
+    Applies cinematic Bollywood movie-poster gradient vignette and elegant typography.
+    Leaves the couple on the right illuminated while ensuring the left title is crisp.
+    """
+    width, height = base_image.size
+    im_rgba = base_image.convert("RGBA")
+
+    # 1. Left-to-center dark gradient overlay
+    gradient = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    grad_draw = ImageDraw.Draw(gradient)
+
+    grad_extent = int(width * 0.6)  # Darkens left 60%
+    for x in range(grad_extent):
+        ratio = (grad_extent - x) / grad_extent
+        alpha = int(220 * (ratio ** 1.5))
+        grad_draw.line([(x, 0), (x, height)], fill=(10, 8, 18, alpha))
+
+    # Subtle bottom vignette
+    bottom_start = int(height * 0.78)
+    for y in range(bottom_start, height):
+        ratio = (y - bottom_start) / (height - bottom_start)
+        alpha = int(140 * ratio)
+        grad_draw.line([(0, y), (width, y)], fill=(8, 6, 14, alpha))
+
+    composite = Image.alpha_composite(im_rgba, gradient)
+    draw = ImageDraw.Draw(composite)
+
+    # 2. Typography Setup
+    lines = format_title_lines(title)
+    max_line_len = max(len(l) for l in lines)
+
+    if max_line_len > 18:
+        title_font_size = 72
+    elif max_line_len > 12:
+        title_font_size = 84
+    else:
+        title_font_size = 94
+
+    font_title = get_font("title", title_font_size)
+    font_presenter = get_font("subtitle", 24)
+    font_sub = get_font("subtitle", 26)
+
+    margin_left = int(width * 0.065)  # ~125px on 1920
+    start_y = int(height * 0.36)      # Vertically centered in upper-middle
+
+    # Presenter Text (Golden accent)
+    draw.text((margin_left, start_y), presenter.upper(), fill=(250, 190, 80, 240), font=font_presenter)
+
+    # Multi-line Title with multi-layer deep drop shadow
+    curr_y = start_y + 48
+    line_bboxes = []
+    for line in lines:
+        for ox, oy, a in [(4, 4, 180), (3, 3, 210), (2, 2, 230)]:
+            draw.text((margin_left + ox, curr_y + oy), line, fill=(0, 0, 0, a), font=font_title)
+        draw.text((margin_left, curr_y), line, fill=(255, 255, 255, 255), font=font_title)
+        bbox = draw.textbbox((margin_left, curr_y), line, font=font_title)
+        line_bboxes.append(bbox)
+        curr_y += (bbox[3] - bbox[1]) + 14
+
+    # Golden decorative line
+    max_text_width = max(b[2] - b[0] for b in line_bboxes) if line_bboxes else 400
+    line_width = min(max(max_text_width, 350), 750)
+    line_y = curr_y + 10
+    draw.line([(margin_left, line_y), (margin_left + line_width, line_y)], fill=(250, 190, 80, 220), width=4)
+
+    # Subtitle
+    sub_text = (subtitle or "A JOURNEY OF TIMELESS LOVE • OFFICIAL MUSIC VIDEO").upper()
+    draw.text((margin_left + 2, line_y + 26), sub_text, fill=(0, 0, 0, 200), font=font_sub)
+    draw.text((margin_left, line_y + 24), sub_text, fill=(225, 225, 230, 240), font=font_sub)
+
+    return composite.convert("RGB")
+
 
 def generate_cover_art(
     title: str,
-    genre: str,
-    image_prompt: str,
+    genre: str = "Bollywood Romantic",
+    image_prompt: str = "",
     output_path: Optional[Path] = None
 ) -> Path:
     """
-    Generate a 16:9 (1920x1080) cover art image for the YouTube video and thumbnail.
-    Uses OpenAI DALL-E 3 if enabled, with automatic fallback to stylized Pillow procedural generation.
+    Generate a 16:9 (1920x1080) cinematic Bollywood couple thumbnail/cover art.
+    Uses Pollinations Flux (free) as primary, with automatic DALL-E & procedural fallbacks.
     """
     if output_path is None:
         output_path = TEMP_DIR / "cover_art.png"
 
-    if GENERATE_AI_COVER and OPENAI_API_KEY:
+    if GENERATE_AI_COVER:
+        # Primary: Pollinations Flux Bollywood Couple Generator
         try:
-            return _generate_dalle_cover(image_prompt, output_path)
+            return _generate_pollinations_couple_cover(title, genre, image_prompt, output_path)
         except Exception as e:
-            logger.warning(f"DALL-E 3 generation failed or quota reached: {e}. Falling back to procedural cover art.")
+            logger.warning(f"Pollinations couple cover generation failed: {e}. Checking secondary generators...")
 
+        # Secondary: OpenAI DALL-E 3 (if key provided)
+        if OPENAI_API_KEY:
+            try:
+                return _generate_dalle_cover(image_prompt or title, output_path, title=title)
+            except Exception as e:
+                logger.warning(f"DALL-E 3 cover generation failed: {e}.")
+
+    # Fallback: Procedural stylized gradient
     return _generate_procedural_cover(title, genre, output_path)
 
 
-def _generate_dalle_cover(image_prompt: str, output_path: Path) -> Path:
+def _generate_pollinations_couple_cover(
+    title: str,
+    genre: str,
+    image_prompt: str,
+    output_path: Path
+) -> Path:
     """
-    Generate cover art using OpenAI DALL-E 3 (1792x1024 aspect ratio, scaled to 1920x1080).
+    Generates a cinematic Bollywood romantic couple image via Pollinations Flux,
+    crops any watermark, scales to 1920x1080, and renders movie poster typography.
+    """
+    logger.info("Generating romantic Bollywood couple cover via Pollinations AI (Flux)...")
+
+    scenic_theme = (
+        image_prompt.strip() if image_prompt and len(image_prompt.strip()) > 10
+        else "majestic snow-capped mountain peaks and calm lake at golden hour sunset, glowing pink and amber sky, wildflowers"
+    )
+
+    couple_prompt = (
+        f"Romantic Bollywood music video poster, medium shot of a handsome Indian man with styled beard in dark suit or sherwani "
+        f"lovingly embracing a beautiful young Indian woman in elegant pink lehenga or flowing dress, couple positioned on right side of frame, "
+        f"{scenic_theme}, warm sunset golden hour lighting, glowing romantic atmosphere, 8k, ultra-detailed photorealistic portrait, masterpiece, sharp focus"
+    )
+
+    seed = random.randint(100, 999999)
+    encoded_prompt = urllib.parse.quote(couple_prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1920&height=1080&model=flux&nologo=true&seed={seed}"
+
+    logger.info(f"Requesting Pollinations image (seed={seed})...")
+    res = requests.get(url, timeout=75)
+    if res.status_code != 200:
+        raise RuntimeError(f"Pollinations returned status {res.status_code}: {res.text[:120]}")
+
+    temp_img_file = output_path.with_suffix(".tmp.png")
+    with open(temp_img_file, "wb") as f:
+        f.write(res.content)
+
+    with Image.open(temp_img_file) as raw_img:
+        w, h = raw_img.size
+        # Crop bottom 28px to eliminate any watermark
+        crop_h = max(h - 28, 100)
+        im_clean = raw_img.crop((0, 0, w, crop_h))
+        # Scale to 1920x1080
+        im_hd = im_clean.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
+        # Apply Bollywood movie poster typography
+        final_thumb = apply_movie_poster_styling(im_hd, title=title)
+        final_thumb.save(output_path, "PNG", quality=95)
+
+    if temp_img_file.exists():
+        temp_img_file.unlink()
+
+    logger.info(f"Romantic couple cover art successfully created at: {output_path} ({VIDEO_WIDTH}x{VIDEO_HEIGHT})")
+    return output_path
+
+
+def _generate_dalle_cover(image_prompt: str, output_path: Path, title: str = "") -> Path:
+    """
+    Generate cover art using OpenAI DALL-E 3 with movie poster styling.
     """
     from openai import OpenAI
-    logger.info(f"Generating 16:9 cover image with DALL-E 3. Prompt: {image_prompt[:100]}...")
+    logger.info(f"Generating cover image with DALL-E 3...")
+
+    prompt = (
+        f"Romantic Bollywood couple, handsome Indian man and beautiful Indian woman in pastel attire, "
+        f"{image_prompt}. Couple on right side of frame, warm golden hour sunset, 16:9 cinematic wallpaper, 4K, no text."
+    )
 
     client = OpenAI(api_key=OPENAI_API_KEY)
     response = client.images.generate(
         model="dall-e-3",
-        prompt=f"{image_prompt}. Cinematic 16:9 wallpaper, 4K render, vibrant lighting, highly detailed, no text, no watermark.",
+        prompt=prompt,
         size="1792x1024",
         quality="standard",
         n=1,
     )
 
     image_url = response.data[0].url
-    logger.info(f"Downloading DALL-E 3 image from {image_url[:80]}...")
-
     img_data = requests.get(image_url, timeout=60).content
+
     temp_img_file = output_path.with_suffix(".tmp.png")
     with open(temp_img_file, "wb") as f:
         f.write(img_data)
 
-    # Resize to exact 1920x1080
-    with Image.open(temp_img_file) as im:
-        im_resized = im.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
-        im_resized.save(output_path, "PNG")
+    with Image.open(temp_img_file) as raw_img:
+        im_hd = raw_img.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
+        final_thumb = apply_movie_poster_styling(im_hd, title=title or "ORIGINAL MUSIC")
+        final_thumb.save(output_path, "PNG")
 
     if temp_img_file.exists():
         temp_img_file.unlink()
 
-    logger.info(f"DALL-E cover art saved to {output_path} ({VIDEO_WIDTH}x{VIDEO_HEIGHT})")
+    logger.info(f"DALL-E cover art saved to {output_path}")
     return output_path
 
 
@@ -84,59 +293,37 @@ def _generate_procedural_cover(title: str, genre: str, output_path: Path) -> Pat
     base = Image.new("RGB", (width, height), color=(15, 12, 35))
     draw = ImageDraw.Draw(base)
 
-    # Draw smooth vertical-diagonal gradient
+    # Smooth vertical-diagonal gradient
     for y in range(height):
         ratio = y / height
-        # Gradient from deep violet/blue to warm magenta
-        r = int(15 * (1 - ratio) + 80 * ratio)
-        g = int(12 * (1 - ratio) + 20 * ratio)
-        b = int(35 * (1 - ratio) + 90 * ratio)
+        r = int(18 * (1 - ratio) + 85 * ratio)
+        g = int(12 * (1 - ratio) + 22 * ratio)
+        b = int(40 * (1 - ratio) + 95 * ratio)
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-    # Add artistic geometric grid lines
+    # Grid lines
     grid_color = (120, 90, 220, 60)
     for x in range(0, width, 80):
         draw.line([(x, height // 2), (width // 2 + (x - width // 2) * 3, height)], fill=grid_color)
     for y in range(height // 2, height, 40):
         draw.line([(0, y), (width, y)], fill=grid_color)
 
-    # Glowing center circle / sun
+    # Glowing center sun
     sun_radius = 220
-    sun_center = (width // 2, height // 2 - 40)
+    sun_center = (int(width * 0.75), height // 2 - 40)
     for i in range(sun_radius, 0, -5):
         alpha_ratio = (sun_radius - i) / sun_radius
         sr = int(255 * alpha_ratio + 120 * (1 - alpha_ratio))
         sg = int(80 * alpha_ratio + 30 * (1 - alpha_ratio))
         sb = int(140 * alpha_ratio + 180 * (1 - alpha_ratio))
         draw.ellipse(
-            [
-                sun_center[0] - i, sun_center[1] - i,
-                sun_center[0] + i, sun_center[1] + i
-            ],
+            [sun_center[0] - i, sun_center[1] - i, sun_center[0] + i, sun_center[1] + i],
             outline=(sr, sg, sb),
             width=2
         )
 
-    # Text overlay
-    try:
-        font_title = ImageFont.truetype("arial.ttf", 64)
-        font_sub = ImageFont.truetype("arial.ttf", 32)
-    except IOError:
-        font_title = ImageFont.load_default()
-        font_sub = ImageFont.load_default()
-
-    # Draw title
-    title_text = title.upper()
-    genre_text = f"• {genre.upper()} ORIGINAL •"
-
-    # Title shadow and text
-    draw.text((width // 2 + 3, height - 197), title_text, fill=(0, 0, 0), font=font_title, anchor="ms")
-    draw.text((width // 2, height - 200), title_text, fill=(255, 255, 255), font=font_title, anchor="ms")
-
-    # Genre subtitle
-    draw.text((width // 2 + 2, height - 138), genre_text, fill=(0, 0, 0), font=font_sub, anchor="ms")
-    draw.text((width // 2, height - 140), genre_text, fill=(255, 170, 80), font=font_sub, anchor="ms")
-
-    base.save(output_path, "PNG")
+    # Apply typography
+    styled = apply_movie_poster_styling(base, title=title, subtitle=f"• {genre.upper()} ORIGINAL •")
+    styled.save(output_path, "PNG")
     logger.info(f"Procedural cover art saved to {output_path}")
     return output_path

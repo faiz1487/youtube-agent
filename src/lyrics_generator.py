@@ -51,21 +51,21 @@ def _generate_with_gemini(selected_genre: str, theme: Optional[str]) -> Dict[str
     """Generate song package using Google Gemini API with automatic model failover."""
     theme_instruction = f"Song Theme: {theme}" if theme else "Pick a captivating, emotionally resonant, or viral theme suited for this genre."
 
-    prompt = f"""You are an elite hit music producer, lyricist, and viral YouTube strategist.
-Your task is to create an original, catchy, high-engagement song package ready for Suno AI music composition and YouTube publication.
+    prompt = f"""You are an elite hit Bollywood music producer, lyricist, and viral YouTube strategist.
+Your task is to create an original, deeply emotional, catchy romantic song package (Hindi/Bollywood romantic ballad) ready for Suno AI music composition and YouTube publication.
 
 Genre: {selected_genre}
 {theme_instruction}
 
 Output ONLY a valid JSON object matching the following schema:
 {{
-  "title": "Song Title (Emotional, Catchy, Capitalized)",
+  "title": "Song Title (Emotional, Romantic, Capitalized, e.g. 'Humhari Dastaan', 'Adhoora Dil', 'Tere Bina')",
   "genre": "{selected_genre}",
-  "suno_style": "Detailed Suno style tags under 120 characters, e.g. '80s synthwave, punchy drums, melancholic female vocals, analog synth leads, 115 bpm'",
-  "lyrics": "Structured song lyrics with meta tags [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Guitar Solo], [Chorus], [Outro]. Make sure it is rhythmic, impactful, and contains memorable hooks.",
-  "dalle_image_prompt": "Cinematic, artistic 16:9 wallpaper visual description representing the mood and theme. Specify high resolution, digital art or photography style, beautiful lighting, NO text in the image.",
-  "description": "Engaging YouTube description including: song overview, complete lyrics with linebreaks, credits, timestamps, and 5-8 relevant hashtags like #synthwave #music #originalsong.",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"]
+  "suno_style": "Detailed Suno style tags under 120 characters, e.g. 'Bollywood romantic ballad, soulful acoustic guitar, warm male vocals, lush strings, 85 bpm'",
+  "lyrics": "Structured romantic song lyrics in beautiful Hindi/Hinglish with meta tags [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus], [Outro]. Make sure it is deeply emotional, poetic, and contains unforgettable romantic hooks.",
+  "dalle_image_prompt": "Scenic backdrop description for a romantic Bollywood couple poster, e.g. 'majestic snow-capped Himalayan mountains at sunset with alpine lake and wildflowers' or 'tranquil lake at golden hour sunset with glowing warm pink sky'. Specify scenic landscape and warm romantic lighting, NO text.",
+  "description": "Engaging YouTube description including: song overview, complete lyrics with linebreaks, credits for 'The Cover Booth', and 5-8 relevant hashtags like #bollywood #romanticsong #hindisong #thecoverbooth.",
+  "tags": ["bollywood romantic", "hindi song", "love song", "soulful ballad", "the cover booth", "new hindi song", "acoustic love", "romantic music"]
 }}
 """
 
@@ -124,8 +124,8 @@ def _generate_with_openai(selected_genre: str, theme: Optional[str]) -> Dict[str
     logger.info(f"Generating lyrics and song metadata via OpenAI ({OPENAI_MODEL}). Genre: {selected_genre}")
 
     system_prompt = (
-        "You are an elite hit music producer, lyricist, and viral YouTube strategist. "
-        "Your task is to create an original, catchy, high-engagement song package ready for "
+        "You are an elite hit Bollywood music producer, lyricist, and viral YouTube strategist. "
+        "Your task is to create an original, deeply emotional romantic song package (Hindi/Bollywood romantic ballad) ready for "
         "Suno AI music composition and YouTube publication.\n\n"
         "You must output ONLY a valid JSON object matching the requested schema."
     )
@@ -138,13 +138,13 @@ Genre: {selected_genre}
 
 Create a complete song package with the following JSON format:
 {{
-  "title": "Song Title (Emotional, Catchy, Capitalized)",
+  "title": "Song Title (Emotional, Romantic, Capitalized, e.g. 'Humhari Dastaan', 'Adhoora Dil', 'Tere Bina')",
   "genre": "{selected_genre}",
-  "suno_style": "Detailed Suno style tags under 120 characters, e.g. '80s synthwave, punchy drums, melancholic female vocals, analog synth leads, 115 bpm'",
-  "lyrics": "Structured song lyrics with meta tags [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Guitar Solo], [Chorus], [Outro]. Make sure it is rhythmic, impactful, and contains memorable hooks.",
-  "dalle_image_prompt": "Cinematic, artistic 16:9 wallpaper visual description representing the mood and theme. Specify high resolution, digital art or photography style, beautiful lighting, NO text in the image.",
-  "description": "Engaging YouTube description including: song overview, complete lyrics with linebreaks, credits, timestamps, and 5-8 relevant hashtags like #synthwave #music #originalsong.",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"]
+  "suno_style": "Detailed Suno style tags under 120 characters, e.g. 'Bollywood romantic ballad, soulful acoustic guitar, warm male vocals, lush strings, 85 bpm'",
+  "lyrics": "Structured romantic song lyrics in beautiful Hindi/Hinglish with meta tags [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Chorus], [Outro]. Make sure it is deeply emotional, poetic, and contains unforgettable romantic hooks.",
+  "dalle_image_prompt": "Scenic backdrop description for a romantic Bollywood couple poster, e.g. 'majestic snow-capped Himalayan mountains at sunset with alpine lake and wildflowers' or 'tranquil lake at golden hour sunset with glowing warm pink sky'. Specify scenic landscape and warm romantic lighting, NO text.",
+  "description": "Engaging YouTube description including: song overview, complete lyrics with linebreaks, credits for 'The Cover Booth', and 5-8 relevant hashtags like #bollywood #romanticsong #hindisong #thecoverbooth.",
+  "tags": ["bollywood romantic", "hindi song", "love song", "soulful ballad", "the cover booth", "new hindi song", "acoustic love", "romantic music"]
 }}
 """
 

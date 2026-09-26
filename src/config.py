@@ -20,7 +20,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest").strip()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
-GENERATE_AI_COVER = os.getenv("GENERATE_AI_COVER", "false").lower() in ("true", "1", "yes")
+GENERATE_AI_COVER = os.getenv("GENERATE_AI_COVER", "true").lower() in ("true", "1", "yes")
 
 # Suno AI Settings
 SUNO_MODE = os.getenv("SUNO_MODE", "cookie").strip().lower()  # "cookie" or "api_gateway"
@@ -36,16 +36,14 @@ YOUTUBE_PRIVACY_STATUS = os.getenv("YOUTUBE_PRIVACY_STATUS", "public").strip().l
 
 # Video & Music Generation Settings
 DEFAULT_GENRES = [
-    "Synthwave",
-    "Lo-Fi Chillhop",
-    "Cyberpunk Melodic",
-    "Epic Cinematic Orchestral",
-    "Indie Dream Pop",
-    "Acoustic Folk Ballad",
-    "Future Bass",
-    "Ambient Atmospheric",
-    "Neo Soul",
-    "Electro Swing"
+    "Bollywood Romantic Ballad",
+    "Hindi Acoustic Love Song",
+    "Bollywood Soulful Melodic",
+    "Sufi Romantic Acoustic",
+    "90s Nostalgic Bollywood Romance",
+    "Indie Hindi Pop Love",
+    "Romantic Lo-Fi Bollywood",
+    "Cinematic Indian Love Duet"
 ]
 raw_genres = os.getenv("MUSIC_GENRES", "")
 MUSIC_GENRES = [g.strip() for g in raw_genres.split(",") if g.strip()] if raw_genres else DEFAULT_GENRES
