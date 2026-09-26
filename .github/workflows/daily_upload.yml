@@ -64,9 +64,12 @@ jobs:
 
       - name: Run Daily Music Agent Pipeline
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.0-flash' }}
+
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4o-mini' }}
-          GENERATE_AI_COVER: ${{ secrets.GENERATE_AI_COVER || 'true' }}
+          GENERATE_AI_COVER: ${{ secrets.GENERATE_AI_COVER || 'false' }}
 
           SUNO_MODE: ${{ secrets.SUNO_MODE || 'cookie' }}
           SUNO_COOKIE: ${{ secrets.SUNO_COOKIE }}

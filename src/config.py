@@ -14,10 +14,13 @@ TEMP_DIR = ROOT_DIR / "temp"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-# OpenAI Settings
+# AI Provider Settings (Gemini / OpenAI)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
-GENERATE_AI_COVER = os.getenv("GENERATE_AI_COVER", "true").lower() in ("true", "1", "yes")
+GENERATE_AI_COVER = os.getenv("GENERATE_AI_COVER", "false").lower() in ("true", "1", "yes")
 
 # Suno AI Settings
 SUNO_MODE = os.getenv("SUNO_MODE", "cookie").strip().lower()  # "cookie" or "api_gateway"
@@ -58,8 +61,8 @@ def validate_config(dry_run: bool = False):
     errors = []
 
     if not dry_run:
-        if not OPENAI_API_KEY:
-            errors.append("OPENAI_API_KEY is not set.")
+        if not GEMINI_API_KEY and not OPENAI_API_KEY:
+            errors.append("Either GEMINI_API_KEY or OPENAI_API_KEY must be set for lyric generation.")
 
         if SUNO_MODE == "cookie" and not SUNO_COOKIE:
             errors.append("SUNO_COOKIE is required when SUNO_MODE='cookie'.")
