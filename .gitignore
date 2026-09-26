@@ -43,6 +43,7 @@ temp/
 !songs/*.mp3
 !songs/*.wav
 !songs/*.m4a
+!src/assets/**
 
 # IDE & OS
 .vscode/
