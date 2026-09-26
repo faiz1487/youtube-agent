@@ -100,6 +100,23 @@ def run_daily_publish():
         audio_file = next_song
         theme_hint = raw_name
     else:
+        from src.config import SUNO_COOKIE, SUNO_API_URL, SUNO_API_KEY
+        if not SUNO_COOKIE and not (SUNO_API_URL and SUNO_API_KEY):
+            logger.error(
+                "\n============================================================\n"
+                "  QUEUE EMPTY & NO SUNO CREDENTIALS FOUND!\n"
+                "============================================================\n"
+                "  All tracks in the 'songs/' folder have already been published.\n"
+                "  To continue automated daily publishing:\n"
+                "    1. Upload your .mp3 audio songs to the 'songs/' folder on GitHub.\n"
+                "    2. GitHub Actions will automatically take 1 song each day,\n"
+                "       create the romantic couple thumbnail, and upload to YouTube!\n"
+                "============================================================"
+            )
+            raise FileNotFoundError(
+                "No queued songs remaining in 'songs/' directory and no Suno credentials provided."
+            )
+
         logger.info("No queued songs found in songs/ folder. Attempting live generation via Suno...")
         from src.suno_client import SunoClient
         song_pkg = generate_song_package()
@@ -107,15 +124,27 @@ def run_daily_publish():
         lyrics = song_pkg["lyrics"]
         suno_style = song_pkg["suno_style"]
 
-        suno = SunoClient()
-        audio_file = TEMP_DIR / "daily_generated_song.mp3"
-        audio_file = suno.compose_song(
-            title=title,
-            style_tags=suno_style,
-            lyrics=lyrics,
-            output_path=audio_file
-        )
-        theme_hint = title
+        try:
+            suno = SunoClient()
+            audio_file = TEMP_DIR / "daily_generated_song.mp3"
+            audio_file = suno.compose_song(
+                title=title,
+                style_tags=suno_style,
+                lyrics=lyrics,
+                output_path=audio_file
+            )
+            theme_hint = title
+        except Exception as e:
+            logger.error(
+                f"\n============================================================\n"
+                f"  Suno live generation failed: {e}\n"
+                f"============================================================\n"
+                f"  Note: Suno browser cookies expire quickly due to Cloudflare.\n"
+                f"  RECOMMENDED: Upload .mp3 tracks directly to the 'songs/' folder on GitHub.\n"
+                f"  The bot will automatically generate couple thumbnails and publish daily!\n"
+                f"============================================================"
+            )
+            raise
 
     # 2. Generate YouTube metadata with Gemini
     logger.info(f">>> STEP 1: Generating SEO Title, Tags & Description with Gemini for: '{theme_hint}'...")
