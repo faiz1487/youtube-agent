@@ -23,16 +23,20 @@ from src.suno_client import SunoClient
 
 def print_instructions():
     print("=" * 70)
-    print("           SUNO.COM ACCOUNT CONNECTION HELPER")
+    print("           SUNO.COM PERMANENT ACCOUNT CONNECTION HELPER")
     print("=" * 70)
-    print("\nHow to get your Suno Cookie in 30 seconds:")
+    print("\nHow to get your persistent Suno Cookie in 30 seconds:")
     print(" 1. Open https://suno.com in Chrome/Edge/Brave and log in.")
     print(" 2. Press F12 (or Right-Click -> Inspect) and click the 'Network' tab.")
     print(" 3. In the filter box at the top, type: client?_clerk")
     print("    (If nothing shows up, refresh the page with F5).")
     print(" 4. Click on the request named 'client?_clerk_js_version=...'")
-    print(" 5. In the 'Headers' tab on the right, scroll to 'Request Headers'.")
-    print(" 6. Find 'Cookie:', right-click the text next to it, and click 'Copy value'.")
+    print(" 5. In the 'Headers' tab on the right, scroll down to 'Request Headers'.")
+    print(" 6. Look for 'Cookie:' (starts with '__client=...' or '__session=...').")
+    print("    Right-click the text next to 'Cookie:' and click 'Copy value'.")
+    print("\n IMPORTANT:")
+    print(" DO NOT copy 'Authorization: Bearer ey...'. That is a temporary 1-hour token.")
+    print(" COPY the 'Cookie:' header value. It stays valid for months!")
     print("=" * 70 + "\n")
 
 
@@ -80,6 +84,14 @@ def main():
     if not cookie:
         print("[ERROR] Cookie cannot be empty.")
         sys.exit(1)
+
+    if cookie.startswith("ey"):
+        print("\n" + "!" * 70)
+        print("⚠️  WARNING: You pasted an 'Authorization: Bearer' token (JWT)!")
+        print("This token expires in only 1 hour and will stop working.")
+        print("For 100% automated hands-free daily generation, copy the 'Cookie:'")
+        print("header value (starts with '__client=' or '__session=') instead.")
+        print("!" * 70 + "\n")
 
     print("\n[1/2] Connecting to Suno and validating session...")
     client = SunoClient(cookie=cookie, mode="cookie")

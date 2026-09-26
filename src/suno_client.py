@@ -45,6 +45,24 @@ class SunoClient:
 
         # If user passed a JWT token directly
         if self.cookie.startswith("ey"):
+            import base64
+            import json
+            try:
+                parts = self.cookie.split(".")
+                if len(parts) >= 2:
+                    padding = "=" * (-len(parts[1]) % 4)
+                    payload = json.loads(base64.urlsafe_b64decode(parts[1] + padding))
+                    exp = payload.get("exp")
+                    if exp and time.time() > exp:
+                        exp_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(exp))
+                        logger.error(
+                            f"\n[SUNO AUTH ERROR] The configured SUNO_COOKIE is a temporary JWT access token that EXPIRED on {exp_str}!\n"
+                            "Suno access tokens (starting with 'ey') only last 1 hour.\n"
+                            "👉 For 100% automated daily generation: Provide the persistent browser 'Cookie' header (starts with '__client' or '__session')\n"
+                            "from suno.com so the bot can auto-refresh fresh tokens daily!\n"
+                        )
+            except Exception:
+                pass
             headers["Authorization"] = f"Bearer {self.cookie}"
             return headers
 
@@ -71,6 +89,7 @@ class SunoClient:
         to retrieve a fresh JWT token for studio-api.suno.ai.
         """
         try:
+            logger.info("Attempting automatic Clerk session refresh using browser cookie...")
             clerk_headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
                 "Cookie": self.cookie,
@@ -82,7 +101,7 @@ class SunoClient:
             session_url = "https://clerk.suno.com/v1/client?_clerk_js_version=5.15.0"
             res = requests.get(session_url, headers=clerk_headers, timeout=15)
             if res.status_code != 200:
-                logger.debug(f"Clerk client request returned status {res.status_code}")
+                logger.warning(f"Clerk client request returned status {res.status_code}: {res.text[:120]}")
                 return None
 
             data = res.json()
@@ -93,7 +112,7 @@ class SunoClient:
                     session_id = sessions[0].get("id")
 
             if not session_id:
-                logger.debug("Could not find active session_id in Clerk response")
+                logger.warning("Could not find active session_id in Clerk response. Cookie may be invalid or expired.")
                 return None
 
             # 2. Mint session token
@@ -102,11 +121,13 @@ class SunoClient:
             if token_res.status_code == 200:
                 jwt = token_res.json().get("jwt")
                 if jwt:
-                    logger.debug("Successfully refreshed Suno Clerk JWT token.")
+                    logger.info("Successfully refreshed fresh Suno Clerk JWT token for session.")
                     return jwt
+            else:
+                logger.warning(f"Clerk token minting returned status {token_res.status_code}: {token_res.text[:120]}")
 
         except Exception as e:
-            logger.debug(f"Clerk token refresh exception: {e}")
+            logger.warning(f"Clerk token refresh exception: {e}")
 
         return None
 
