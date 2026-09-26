@@ -16,7 +16,7 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # AI Provider Settings (Gemini / OpenAI)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest").strip()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()

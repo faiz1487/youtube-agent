@@ -14,6 +14,12 @@ from src.config import (
 
 logger = logging.getLogger(__name__)
 
+GEMINI_FALLBACK_MODELS = [
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
+    "gemini-3.8-flash"
+]
+
 
 def generate_song_package(genre: Optional[str] = None, theme: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -42,9 +48,7 @@ def generate_song_package(genre: Optional[str] = None, theme: Optional[str] = No
 
 
 def _generate_with_gemini(selected_genre: str, theme: Optional[str]) -> Dict[str, Any]:
-    """Generate song package using Google Gemini API (Free tier supported)."""
-    logger.info(f"Generating lyrics and song metadata via Google Gemini ({GEMINI_MODEL}). Genre: {selected_genre}")
-
+    """Generate song package using Google Gemini API with automatic model failover."""
     theme_instruction = f"Song Theme: {theme}" if theme else "Pick a captivating, emotionally resonant, or viral theme suited for this genre."
 
     prompt = f"""You are an elite hit music producer, lyricist, and viral YouTube strategist.
@@ -65,7 +69,11 @@ Output ONLY a valid JSON object matching the following schema:
 }}
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    models_to_try = [GEMINI_MODEL] if GEMINI_MODEL else []
+    for m in GEMINI_FALLBACK_MODELS:
+        if m not in models_to_try:
+            models_to_try.append(m)
+
     payload = {
         "contents": [
             {
@@ -78,16 +86,36 @@ Output ONLY a valid JSON object matching the following schema:
         }
     }
 
-    res = requests.post(url, json=payload, timeout=45)
-    if res.status_code != 200:
-        logger.error(f"Gemini API returned error: {res.status_code} - {res.text}")
-        res.raise_for_status()
+    last_error = None
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        logger.info(f"Attempting lyric generation with Gemini ({model_name}). Genre: {selected_genre}")
+        try:
+            res = requests.post(url, json=payload, timeout=35)
+            if res.status_code == 200:
+                data = res.json()
+                raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                # Clean potential markdown fences
+                cleaned_text = raw_text.strip()
+                if cleaned_text.startswith("```"):
+                    lines = cleaned_text.splitlines()
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines and lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    cleaned_text = "\n".join(lines).strip()
 
-    data = res.json()
-    raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-    result = json.loads(raw_text)
-    logger.info(f"Successfully generated song package with Gemini: '{result.get('title')}'")
-    return result
+                result = json.loads(cleaned_text)
+                logger.info(f"Successfully generated song package with Gemini ({model_name}): '{result.get('title')}'")
+                return result
+            else:
+                logger.warning(f"Gemini {model_name} returned status {res.status_code}: {res.text[:100]}")
+                last_error = f"{res.status_code} - {res.text[:100]}"
+        except Exception as err:
+            logger.warning(f"Error calling Gemini ({model_name}): {err}")
+            last_error = err
+
+    raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
 
 
 def _generate_with_openai(selected_genre: str, theme: Optional[str]) -> Dict[str, Any]:
