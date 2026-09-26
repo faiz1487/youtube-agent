@@ -1,23 +1,18 @@
 name: Daily YouTube AI Music Agent
 
 on:
-  # Schedule to run automatically every day at 14:00 UTC (9:00 AM EST / 19:30 IST)
+  # Runs daily automatically at 14:00 UTC (19:30 IST / 7:30 PM India Time)
   schedule:
     - cron: '0 14 * * *'
 
   # Allows manual execution anytime from the GitHub Actions tab
   workflow_dispatch:
     inputs:
-      genre:
-        description: 'Music Genre (leave empty for automatic rotation)'
+      dry_run:
+        description: 'Run in Dry-Run mode (simulation test without uploading)'
         required: false
-        type: string
-        default: ''
-      theme:
-        description: 'Specific song theme or story concept'
-        required: false
-        type: string
-        default: ''
+        type: boolean
+        default: false
       privacy:
         description: 'YouTube Video Privacy'
         required: true
@@ -27,11 +22,9 @@ on:
           - unlisted
           - private
         default: 'public'
-      dry_run:
-        description: 'Run in Dry-Run mode (tests pipeline without spending credits or uploading)'
-        required: false
-        type: boolean
-        default: false
+
+permissions:
+  contents: write
 
 jobs:
   compose_and_publish:
@@ -65,11 +58,11 @@ jobs:
       - name: Run Daily Music Agent Pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-2.0-flash' }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL || 'gemini-flash-latest' }}
 
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4o-mini' }}
-          GENERATE_AI_COVER: ${{ secrets.GENERATE_AI_COVER || 'false' }}
+          GENERATE_AI_COVER: 'false'
 
           SUNO_MODE: ${{ secrets.SUNO_MODE || 'cookie' }}
           SUNO_COOKIE: ${{ secrets.SUNO_COOKIE }}
@@ -83,26 +76,21 @@ jobs:
 
           MUSIC_GENRES: ${{ secrets.MUSIC_GENRES }}
         run: |
-          CMD_ARGS=""
-
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            CMD_ARGS="$CMD_ARGS --dry-run"
+            echo "Running Dry-Run test simulation..."
+            python src/main.py --dry-run
+          else
+            echo "Running Daily Autonomous Publisher..."
+            python src/daily_publisher.py
           fi
 
-          if [ -n "${{ github.event.inputs.genre }}" ]; then
-            CMD_ARGS="$CMD_ARGS --genre '${{ github.event.inputs.genre }}'"
-          fi
-
-          if [ -n "${{ github.event.inputs.theme }}" ]; then
-            CMD_ARGS="$CMD_ARGS --theme '${{ github.event.inputs.theme }}'"
-          fi
-
-          if [ -n "${{ github.event.inputs.privacy }}" ]; then
-            CMD_ARGS="$CMD_ARGS --privacy ${{ github.event.inputs.privacy }}"
-          fi
-
-          echo "Executing: python src/main.py $CMD_ARGS"
-          eval python src/main.py $CMD_ARGS
+      - name: Commit and Push Published History
+        if: success()
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add published.json
+          git diff --staged --quiet || (git commit -m "chore: record daily published song [skip ci]" && git push)
 
       - name: Upload Output Artifacts (Logs & Thumbnails)
         if: always()
@@ -110,5 +98,6 @@ jobs:
         with:
           name: daily-upload-artifacts
           path: |
-            temp/cover_art.png
+            temp/thumb_*.png
+            output/*.mp4
           retention-days: 7

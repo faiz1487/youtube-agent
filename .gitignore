@@ -35,11 +35,14 @@ wheels/
 output/
 temp/
 *.mp4
-*.mp3
-*.wav
 *.png
 *.jpg
 *.jpeg
+*.mp3
+*.wav
+!songs/*.mp3
+!songs/*.wav
+!songs/*.m4a
 
 # IDE & OS
 .vscode/
