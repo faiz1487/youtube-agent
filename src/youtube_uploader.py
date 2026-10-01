@@ -137,7 +137,8 @@ class YouTubeUploader:
         """
         try:
             logger.info(f"Uploading custom thumbnail from {thumbnail_path} for video {video_id}...")
-            thumb_media = MediaFileUpload(str(thumbnail_path), mimetype="image/png")
+            mime = "image/png" if str(thumbnail_path).lower().endswith(".png") else "image/jpeg"
+            thumb_media = MediaFileUpload(str(thumbnail_path), mimetype=mime)
             youtube.thumbnails().set(
                 videoId=video_id,
                 media_body=thumb_media

@@ -70,6 +70,23 @@ def get_next_queued_song() -> Path:
     published_files = {item["filename"] for item in history.get("published_songs", [])}
 
     audio_extensions = {".mp3", ".wav", ".m4a", ".aac"}
+
+    # Automatically discover and move any audio files accidentally uploaded to repository root
+    try:
+        for f in ROOT_PATH.iterdir():
+            if f.is_file() and f.suffix.lower() in audio_extensions:
+                target = SONGS_DIR / f.name
+                if not target.exists():
+                    logger.info(f"Discovered audio file '{f.name}' in repo root. Moving to songs/ folder.")
+                    f.rename(target)
+                elif f != target:
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
+    except Exception as e:
+        logger.warning(f"Error scanning repo root for audio files: {e}")
+
     queued_songs = sorted([
         f for f in SONGS_DIR.iterdir()
         if f.suffix.lower() in audio_extensions and f.name not in published_files

@@ -21,16 +21,30 @@ logger = logging.getLogger(__name__)
 ASSETS_FONTS_DIR = ROOT_DIR / "src" / "assets" / "fonts"
 
 
-def get_font(font_type: str = "title", size: int = 72) -> ImageFont.ImageFont:
+def is_devanagari(text: str) -> bool:
+    return any("\u0900" <= c <= "\u097f" for c in text)
+
+
+def get_font(font_type: str = "title", size: int = 72, text: str = "") -> ImageFont.ImageFont:
     """
     Load high quality font for Bollywood movie poster typography.
+    Supports both Hindi (Devanagari) and English (Latin) scripts seamlessly.
     Falls back gracefully across local assets, Windows, Linux, and PIL defaults.
     """
     candidates: List[Path] = []
 
-    if font_type == "title":
+    if text and is_devanagari(text):
+        candidates.extend([
+            ASSETS_FONTS_DIR / "HindiTitle.ttf",
+            Path("C:/Windows/Fonts/Nirmala.ttc"),
+            Path("C:/Windows/Fonts/NirmalaB.ttf"),
+            Path("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"),
+            Path("/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf"),
+        ])
+    elif font_type == "title":
         candidates.extend([
             ASSETS_FONTS_DIR / "CinematicTitle.ttf",
+            ASSETS_FONTS_DIR / "HindiTitle.ttf",
             Path("C:/Windows/Fonts/georgiab.ttf"),
             Path("C:/Windows/Fonts/palab.ttf"),
             Path("C:/Windows/Fonts/timesbd.ttf"),
@@ -40,6 +54,7 @@ def get_font(font_type: str = "title", size: int = 72) -> ImageFont.ImageFont:
     else:  # subtitle / presenter
         candidates.extend([
             ASSETS_FONTS_DIR / "Subtitle.ttf",
+            ASSETS_FONTS_DIR / "HindiTitle.ttf",
             Path("C:/Windows/Fonts/arialbd.ttf"),
             Path("C:/Windows/Fonts/segoeui.ttf"),
             Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
@@ -122,9 +137,9 @@ def apply_movie_poster_styling(
     else:
         title_font_size = 94
 
-    font_title = get_font("title", title_font_size)
-    font_presenter = get_font("subtitle", 24)
-    font_sub = get_font("subtitle", 26)
+    font_title = get_font("title", title_font_size, text=title)
+    font_presenter = get_font("subtitle", 24, text=presenter)
+    font_sub = get_font("subtitle", 26, text=subtitle or "")
 
     margin_left = int(width * 0.065)  # ~125px on 1920
     start_y = int(height * 0.36)      # Vertically centered in upper-middle
