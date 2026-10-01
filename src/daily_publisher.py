@@ -184,16 +184,17 @@ def run_daily_publish():
         output_path=thumbnail_path
     )
 
-    # 4. Render 1080p MP4 Video with Visualizer Wave
-    logger.info(">>> STEP 3: Rendering 1080p MP4 Video with Audio Visualizer...")
+    # 4. Render 1080p MP4 Video with exact HD Thumbnail image
+    logger.info(">>> STEP 3: Rendering 1080p Full HD MP4 Video from Thumbnail Image...")
     safe_title = "".join(c for c in song_title if c.isalnum() or c in (" ", "_", "-")).strip()
     video_path = OUTPUT_DIR / f"{safe_title}.mp4"
 
+    enable_vis = os.getenv("ENABLE_VISUALIZER", "false").lower() == "true"
     create_music_video(
         image_path=thumbnail_path,
         audio_path=audio_file,
         output_path=video_path,
-        with_visualizer=True
+        with_visualizer=enable_vis
     )
 
     # 5. Upload to YouTube channel ('The Cover Booth')

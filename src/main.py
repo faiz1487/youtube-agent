@@ -116,11 +116,12 @@ def run_pipeline(
     safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "_", "-")).rstrip()
     final_video_path = OUTPUT_DIR / f"{safe_title}.mp4"
 
+    enable_vis = os.getenv("ENABLE_VISUALIZER", "false").lower() == "true"
     video_path = create_music_video(
         image_path=cover_image_path,
         audio_path=audio_file,
         output_path=final_video_path,
-        with_visualizer=True
+        with_visualizer=enable_vis
     )
 
     # 6. Step 5: Upload to YouTube

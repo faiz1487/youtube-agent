@@ -86,11 +86,12 @@ def publish_audio_to_youtube(
     safe_title = "".join(c for c in song_title if c.isalnum() or c in (" ", "_", "-")).strip()
     video_path = OUTPUT_DIR / f"{safe_title}.mp4"
 
+    enable_vis = os.getenv("ENABLE_VISUALIZER", "false").lower() == "true"
     create_music_video(
         image_path=thumbnail_path,
         audio_path=audio_path,
         output_path=video_path,
-        with_visualizer=True  # Renders smooth audio visualizer wave over thumbnail
+        with_visualizer=enable_vis
     )
 
     # Step 4: Upload to YouTube channel
